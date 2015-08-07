@@ -107,7 +107,14 @@ exports.create = function (options, callback) {
 
     args = args.concat([ path.join(__dirname, 'bridge.js') ]);
 
-    var phantom = spawn(options.path, args);
+    var phantom = null;
+    if (options.headless) {
+      spawn('xvfb-run -a ' + options.path, args);
+    } else {
+      phantom = spawn(options.path, args);
+    }
+
+
 
     // Ensure that the child process is closed when this process dies
     var closeChild = function () {

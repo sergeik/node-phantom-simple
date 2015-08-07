@@ -109,7 +109,7 @@ exports.create = function (options, callback) {
 
     var phantom = null;
     if (options.headless) {
-      spawn('xvfb-run -a ' + options.path, args);
+      phantom = spawn('xvfb-run -a ' + options.path, args);
     } else {
       phantom = spawn(options.path, args);
     }

@@ -109,7 +109,8 @@ exports.create = function (options, callback) {
 
     var phantom = null;
     if (options.headless) {
-      phantom = spawn('xvfb-run -a ' + options.path, args);
+      var xvfbArgs = [].concat('-a', options.path, args)
+      phantom = spawn('xvfb-run', xvfbArgs);
     } else {
       phantom = spawn(options.path, args);
     }

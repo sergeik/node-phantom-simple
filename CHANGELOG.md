@@ -1,3 +1,15 @@
+2.0.4 / 2015-08-22
+------------------
+
+- Fixed poll loop termination after browser die (missed in 2.0.3).
+
+
+2.0.3 / 2015-08-17
+------------------
+
+- Fixed poll loop termination after `.close()`.
+
+
 2.0.2 / 2015-08-02
 ------------------
 

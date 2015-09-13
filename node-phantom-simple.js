@@ -3,14 +3,30 @@
 
 'use strict';
 
+
 var HeadlessError   = require('./headless_error');
 var http            = require('http');
-var spawn       = require('child_process').spawn;
+var spawn           = require('child_process').spawn;
 var exec            = require('child_process').exec;
 var util            = require('util');
 var path            = require('path');
+var Emitter         = require('events').EventEmitter;
 
 var POLL_INTERVAL   = process.env.POLL_INTERVAL || 500;
+
+
+// Setup events proxy to avoid warnings "possible memory leak"
+//
+var processProxy    = new Emitter();
+
+processProxy.setMaxListeners(0);
+
+[ 'SIGINT', 'SIGTERM' ].forEach(function(sig) {
+  process.on(sig, function () {
+    processProxy.emit(sig);
+  });
+});
+
 
 var queue = function (worker) {
   var _q = [];
@@ -67,10 +83,12 @@ function wrapArray(arr) {
   return (arr instanceof Array) ? arr : [ arr ];
 }
 
+
 var pageEvaluateDeprecatedFn = util.deprecate(function () {}, "Deprecated 'page.evaluate(fn, callback, args...)' syntax - use 'page.evaluate(fn, args..., callback)' instead");
 var createDeprecatedFn = util.deprecate(function () {}, "Deprecated '.create(callback, options)' syntax - use '.create(options, callback)' instead");
 var pageWaitForSelectorDeprecatedFn = util.deprecate(function () {}, "Deprecated 'page.waitForSelector(selector, callback, timeout)' syntax - use 'page.waitForSelector(selector, timeout, callback)' instead");
 var phantomPathDeprecatedFn = util.deprecate(function () {}, "Deprecated 'phantomPath' option - use 'path' instead");
+
 
 exports.create = function (options, callback) {
   if (callback && Object.prototype.toString.call(options) === '[object Function]') {
@@ -123,20 +141,12 @@ exports.create = function (options, callback) {
       } catch (__) {
         //
       }
-      process.exit(1);
-    };
-
-    var uncaughtHandler = function (err) {
-      console.error(err.stack);
-      closeChild();
     };
 
     // Note it's possible to blow up maxEventListeners doing this - consider moving to a single handler.
     [ 'SIGINT', 'SIGTERM' ].forEach(function(sig) {
-      process.on(sig, closeChild);
+      processProxy.on(sig, closeChild);
     });
-
-    process.on('uncaughtException', uncaughtHandler);
 
     phantom.once('error', function (err) {
       callback(err);
@@ -153,10 +163,9 @@ exports.create = function (options, callback) {
 
     phantom.once('exit', function (code) {
       [ 'SIGINT', 'SIGTERM' ].forEach(function(sig) {
-        process.removeListener(sig, closeChild);
+        processProxy.removeListener(sig, closeChild);
       });
 
-      process.removeListener('uncaughtException', uncaughtHandler);
       exitCode = code;
     });
 
@@ -544,6 +553,7 @@ exports.create = function (options, callback) {
   });
 };
 
+
 function setup_long_poll (phantom, port, pages, setup_new_page) {
   var http_opts = {
     hostname: 'localhost',
@@ -630,6 +640,11 @@ function setup_long_poll (phantom, port, pages, setup_new_page) {
   };
 
   var repeater = function () {
+    // If phantom already killed - stop repeat timer
+    if (dead || phantom.killed) {
+      return;
+    }
+
     setTimeout(function () {
       poll_func(repeater);
     }, POLL_INTERVAL);
